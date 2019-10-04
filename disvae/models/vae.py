@@ -6,7 +6,6 @@ from torch import nn, optim
 from torch.nn import functional as F
 from disvae.models.encoders import Encoder
 from disvae.models.decoders import Decoder
-from disvae.models.connector import Connector
 
 class VLAE(nn.Module):
     def __init__(self, latent_dim, cs):
@@ -23,8 +22,7 @@ class VLAE(nn.Module):
         self.latent_dim = latent_dim
         self.img_size = (1, 32, 32)
         self.encoder = Encoder(self.img_size, cs, self.latent_dim)
-        self.decoder = Decoder(self.img_size, cs, self.latent_dim)
-        self.connector = Connector(cs, self.latent_dim)
+        self.decoder = Decoder(cs, self.latent_dim)
 
     def forward(self, x):
         """
