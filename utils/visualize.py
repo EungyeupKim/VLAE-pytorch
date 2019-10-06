@@ -288,9 +288,7 @@ class Visualizer():
         is_force_return : bool, optional
             Force returning instead of saving the image.
         """
-        print(viz_single)
         if not viz_single:  # 2 latent dim
-            print(viz_single)
             latent_samples = torch.zeros((100, 2))
             prior_range = torch.linspace(-2, 2, 10)
             for i in range(n_per_latent):
