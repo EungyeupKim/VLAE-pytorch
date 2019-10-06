@@ -4,18 +4,17 @@ from torch import nn
 
 class Encoder(nn.Module):
     def __init__(self, img_size, cs,
-                 latent_dim=10):
+                 latent_dim=(2, 2, 2)):
 
         super(Encoder, self).__init__()
 
         # Layer parameters
         cnn_kwargs = dict(stride=2, padding=1)
         self.cs = cs
-        ladder0_dim = 2
-        ladder1_dim = 2
-        ladder2_dim = 2
+        self.latent_dim0 = latent_dim[0]
+        self.latent_dim1 = latent_dim[1]
+        self.latent_dim2 = latent_dim[2]
         kernel_size = 4
-        self.latent_dim = latent_dim
         self.img_size = img_size
         n_chan = self.img_size[0]
 
@@ -24,8 +23,8 @@ class Encoder(nn.Module):
         self.bnl0_1 = nn.BatchNorm2d(cs[1], 0.001)
         self.convl0_2 = nn.Conv2d(cs[1], cs[2], kernel_size, **cnn_kwargs)
         self.bnl0_2 = nn.BatchNorm2d(cs[2], 0.001)
-        self.affl0_mean = nn.Linear(np.product((cs[2], 2 * kernel_size, 2 * kernel_size)), ladder0_dim)
-        self.affl0_stddev = nn.Linear(np.product((cs[2], 2 * kernel_size, 2 * kernel_size)), ladder0_dim)
+        self.affl0_mean = nn.Linear(np.product((cs[2], 2 * kernel_size, 2 * kernel_size)), self.latent_dim0)
+        self.affl0_stddev = nn.Linear(np.product((cs[2], 2 * kernel_size, 2 * kernel_size)), self.latent_dim0)
 
         #inference0
         self.convi0_1 = nn.Conv2d(n_chan, cs[1], kernel_size, **cnn_kwargs)
@@ -39,8 +38,8 @@ class Encoder(nn.Module):
         self.bnl1_1 = nn.BatchNorm1d(cs[3], 0.001)
         self.affl1_2 = nn.Linear(cs[3], cs[3])
         self.bnl1_2 = nn.BatchNorm1d(cs[3], 0.001)
-        self.affl1_mean = nn.Linear(cs[3], ladder1_dim)
-        self.affl1_stddev = nn.Linear(cs[3], ladder1_dim)
+        self.affl1_mean = nn.Linear(cs[3], self.latent_dim1)
+        self.affl1_stddev = nn.Linear(cs[3], self.latent_dim1)
 
         # inference1
         self.affi1_1 = nn.Linear(cs[3], cs[3])
@@ -54,8 +53,8 @@ class Encoder(nn.Module):
         self.bnl2_1 = nn.BatchNorm1d(cs[3], 0.001)
         self.affl2_2 = nn.Linear(cs[3], cs[3])
         self.bnl2_2 = nn.BatchNorm1d(cs[3], 0.001)
-        self.affl2_mean = nn.Linear(cs[3], ladder2_dim)
-        self.affl2_stddev = nn.Linear(cs[3], ladder2_dim)
+        self.affl2_mean = nn.Linear(cs[3], self.latent_dim2)
+        self.affl2_stddev = nn.Linear(cs[3], self.latent_dim2)
 
     def reparameterize(self, mean, stddev):
 
@@ -106,8 +105,8 @@ class Encoder(nn.Module):
         h2_ladd = torch.relu(self.bnl2_1(h2_ladd))
         h2_ladd = self.affl2_2(h2_ladd)
         h2_ladd = torch.relu(self.bnl2_2(h2_ladd))
-        h2_ladd_mean = self.affl1_mean(h2_ladd)
-        h2_ladd_stddev = torch.sigmoid(self.affl1_stddev(h2_ladd)) + 0.001
+        h2_ladd_mean = self.affl2_mean(h2_ladd)
+        h2_ladd_stddev = torch.sigmoid(self.affl2_stddev(h2_ladd)) + 0.001
         h2_sample = self.reparameterize(h2_ladd_mean, h2_ladd_stddev)
 
         return h0_ladd_mean, h0_ladd_stddev, h0_sample, h1_ladd_mean, h1_ladd_stddev, h1_sample, h2_ladd_mean, h2_ladd_stddev, h2_sample
