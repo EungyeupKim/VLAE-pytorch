@@ -3,7 +3,6 @@ from collections import defaultdict
 from tqdm import trange
 import torch
 import numpy as np
-from disvae.models.losses import _reconstruction_loss, _kl_normal_loss
 
 from disvae.utils.modelIO import save_model
 
@@ -55,7 +54,7 @@ class Trainer():
         self.gif_visualizer = gif_visualizer
         self.loss_ratio = 8.0
 
-    def __call__(self, data_loader,
+    def __call__(self, args, data_loader,
                  epochs=10,
                  checkpoint_every=10):
         """
@@ -72,13 +71,14 @@ class Trainer():
             Save a checkpoint of the trained model every n epoch.
         """
         start = default_timer()
+        self.args = args
         self.model.train()
         for epoch in range(epochs):
             mean_epoch_loss = self._train_epoch(data_loader, epoch)
             print('Loss per epoch : {} ---- {}/{}'.format(mean_epoch_loss, epoch, epochs))
 
             if self.gif_visualizer is not None:
-                self.gif_visualizer(epoch)
+                self.gif_visualizer(epoch, viz_single=self.args.viz_single)
 
             if epoch % checkpoint_every == 0:
                 save_model(self.model, self.save_dir, filename="model-{}.pt".format(epoch))
