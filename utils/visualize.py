@@ -91,7 +91,7 @@ class Visualizer():
         # symmetrical traversals
         return (-1 * max_traversal, max_traversal)
 
-    def _traverse_line(self, idx, n_samples, data=None):
+    def _traverse_line(self, idx, n_samples, dim_num, data=None):
         """Return a (size, latent_size) latent sample, corresponding to a traversal
         of a latent variable indicated by idx.
 
@@ -111,7 +111,7 @@ class Visualizer():
         """
         if data is None:
             # mean of prior for other dimensions
-            samples = torch.zeros(n_samples, self.latent_dim) # 5 x 10 - vanilla vae
+            samples = torch.zeros(n_samples, dim_num) # 5 x 10 - vanilla vae
             traversals = torch.linspace(*self._get_traversal_range(), steps=n_samples)
 
         else:
@@ -138,19 +138,33 @@ class Visualizer():
 
         return samples
 
-    def _save_or_return(self, to_plot, size, filename, is_force_return=False):
+    def _save_or_return(self, to_plot, dim_list, filename, viz_single, is_force_return=False):
         """Create plot and save or return it."""
-        #to plot 300 x C x H x W
-        to_plot = F.interpolate(to_plot, scale_factor=self.upsample_factor)
-        to_plot_1 = to_plot[0:100, :, :, :]
-        to_plot_2 = to_plot[100:200, :, :, :]
-        to_plot_3 = to_plot[200:300, :, :, :]
 
-        canvas = torch.ones((320, 1, 32, 32))
-        for i in range(10):
-            canvas[32 * i:32 * i + 10, :, :, :] = to_plot_1[10 * i:10 * (i + 1), :, :, :]
-            canvas[32 * i + 11:32 * i + 21, :, :, :] = to_plot_2[10 * i:10 * (i + 1), :, :, :]
-            canvas[32 * i + 22:32 * i + 32, :, :, :] = to_plot_3[10 * i:10 * (i + 1), :, :, :]
+        if not viz_single:
+            to_plot = F.interpolate(to_plot, scale_factor=self.upsample_factor)
+            to_plot_1 = to_plot[0:100, :, :, :]
+            to_plot_2 = to_plot[100:200, :, :, :]
+            to_plot_3 = to_plot[200:300, :, :, :]
+
+            canvas = torch.ones((320, 1, 32, 32))
+            for i in range(10):
+                canvas[32 * i:32 * i + 10, :, :, :] = to_plot_1[10 * i:10 * (i + 1), :, :, :]
+                canvas[32 * i + 11:32 * i + 21, :, :, :] = to_plot_2[10 * i:10 * (i + 1), :, :, :]
+                canvas[32 * i + 22:32 * i + 32, :, :, :] = to_plot_3[10 * i:10 * (i + 1), :, :, :]
+        else:
+            to_plot = F.interpolate(to_plot, scale_factor=self.upsample_factor)
+            to_plot_1 = to_plot[0:dim_list[0], :, :, :]
+            to_plot_2 = to_plot[dim_list[0]:dim_list[0] + dim_list[1], :, :, :]
+            to_plot_3 = to_plot[dim_list[0] + dim_list[1]:dim_list[0] + dim_list[1] + dim_list[2], :, :, :]
+
+            canvas = torch.ones((dim_list[0] // 10 * 32, 1, 32, 32))
+            for i in range(dim_list[0] // 10):
+                canvas[32 * i:32 * i + 10, :, :, :] = to_plot_1[10 * i:10 * (i + 1), :, :, :]
+                if i < dim_list[1] // 10:
+                    canvas[32 * i + 11: 32 * i + 21, :, :, :] = to_plot_2[10 * i:10 * (i + 1), :, :, :]
+                if i < dim_list[2] // 10:
+                    canvas[32 * i + 22: 32 * i + 32, :, :, :] = to_plot_3[10 * i:10 * (i + 1), :, :, :]
 
         # if size[0] * size[1] * 3 != to_plot.shape[0]:
         #     raise ValueError("Wrong size {} for datashape {}".format(size, to_plot.shape))
@@ -243,11 +257,13 @@ class Visualizer():
 
     def traversals(self,
                    epoch,
+                   viz_single,
                    data=None,
                    is_reorder_latents=False,
                    n_per_latent=10,
                    n_latents=None,
-                   is_force_return=False):
+                   is_force_return=False
+                   ):
         """Plot traverse through all latent dimensions (prior or posterior) one
         by one and plots a grid of images where each row corresponds to a latent
         traversal of one latent dimension.
@@ -272,60 +288,77 @@ class Visualizer():
         is_force_return : bool, optional
             Force returning instead of saving the image.
         """
-        #print('latent_dim', self.latent_dim)
-        #print('n_per_latent', n_per_latent)
+        print(viz_single)
+        if not viz_single:  # 2 latent dim
+            print(viz_single)
+            latent_samples = torch.zeros((100, 2))
+            prior_range = torch.linspace(-2, 2, 10)
+            for i in range(n_per_latent):
+                for j in range(n_per_latent):
+                    latent_samples[10 * i + j][0] = prior_range[i]
+                    latent_samples[10 * i + j][1] = prior_range[j]
 
-        n_latents = n_latents if n_latents is not None else self.model.latent_dim
-        latent_samples = [self._traverse_line(dim, n_per_latent, data=data) #10x10 x 10
-                          for dim in range(self.latent_dim)] # dim = 10
+            zero_samples = torch.zeros(latent_samples.shape)  # 100 x 2
 
-        #decoded_traversal = self._decode_latents(torch.cat(latent_samples, dim=0)) # 10x10개의 image 생성
+            decoded_traversal_h1 = self._decode_latents(latent_samples, zero_samples,
+                                                        zero_samples)  # 100 x C x H x W -> 100 samples of 1st hidden layer
+            decoded_traversal_h2 = self._decode_latents(zero_samples, latent_samples, zero_samples)
+            decoded_traversal_h3 = self._decode_latents(zero_samples, zero_samples, latent_samples)
 
-        # latent_samples = torch.cat(latent_samples, dim=0)  # 100 x 10
-        # zero_samples = torch.zeros(latent_samples.shape)  # 100 x 10
-        latent_samples = torch.zeros((100, 2))
-        prior_range = torch.linspace(-2, 2, 10)
-        for i in range(n_per_latent):
-            for j in range(n_per_latent):
-                latent_samples[10*i + j][0] = prior_range[i]
-                latent_samples[10*i + j][1] = prior_range[j]
+            dim_list = None
 
-        zero_samples = torch.zeros(latent_samples.shape) # 100 x 2
+        else:  # more than 2 latent dim
+            latent_samples = []
+            for i, dim_num in enumerate(self.model.latent_dim):
+                n_latents = n_latents if n_latents is not None else dim_num
+                latent_samples_single = [self._traverse_line(dim, n_per_latent, dim_num, data=data)  # 10x10 x 10
+                                         for dim in range(dim_num)]  # dim = 10
+                latent_samples.append(torch.cat(latent_samples_single, dim=0))
 
-        decoded_traversal_h1 = self._decode_latents(latent_samples, zero_samples, zero_samples)  # 100 x C x H x W -> 100 samples of 1st hidden layer
-        decoded_traversal_h2 = self._decode_latents(zero_samples, latent_samples, zero_samples)
-        decoded_traversal_h3 = self._decode_latents(zero_samples, zero_samples, latent_samples)
+            decoded_traversal_h1 = self._decode_latents(latent_samples[0], torch.ones(
+                (latent_samples[0].shape[0], latent_samples[1].shape[1])), torch.ones(
+                (latent_samples[0].shape[0], latent_samples[2].shape[1])))
+            decoded_traversal_h2 = self._decode_latents(
+                torch.ones((latent_samples[1].shape[0], latent_samples[0].shape[1])), latent_samples[1],
+                torch.ones((latent_samples[1].shape[0], latent_samples[2].shape[1])))
+            decoded_traversal_h3 = self._decode_latents(
+                torch.ones((latent_samples[2].shape[0], latent_samples[0].shape[1])),
+                torch.ones((latent_samples[2].shape[0], latent_samples[1].shape[1])), latent_samples[2])
+
+            dim_list = [latent_samples[0].shape[0], latent_samples[1].shape[0], latent_samples[2].shape[0]]
 
         if is_reorder_latents:
-            n_images1, *other_shape1 = decoded_traversal_h1.size()
-            n_rows1 = n_images1 // n_per_latent # 100//10 = 10
-            decoded_traversal_h1 = decoded_traversal_h1.reshape(n_rows1, n_per_latent, *other_shape1) # 100 x 10 x C x H x W
+            n_images1, *other_shape1 = decoded_traversal_h1.size()  # 170 x C x H x W
+            n_rows1 = n_images1 // n_per_latent  # 170//10 = 17
+            decoded_traversal_h1 = decoded_traversal_h1.reshape(n_rows1, n_per_latent,
+                                                                *other_shape1)  # 17 x 10 x C x H x W
             decoded_traversal_h1 = sort_list_by_other(decoded_traversal_h1, self.losses)
             decoded_traversal_h1 = torch.stack(decoded_traversal_h1, dim=0)
-            decoded_traversal_h1 = decoded_traversal_h1.reshape(n_images1, *other_shape1) # 100 x C x H x W
+            decoded_traversal_h1 = decoded_traversal_h1.reshape(n_images1, *other_shape1)  # 100 x C x H x W
 
             n_images2, *other_shape2 = decoded_traversal_h2.size()
             n_rows2 = n_images2 // n_per_latent  # 400//10 = 40
-            decoded_traversal_h2 = decoded_traversal_h2.reshape(n_rows2, n_per_latent, *other_shape2)  # 100 x 10 x C x H x W
+            decoded_traversal_h2 = decoded_traversal_h2.reshape(n_rows2, n_per_latent,
+                                                                *other_shape2)  # 100 x 10 x C x H x W
             decoded_traversal_h2 = sort_list_by_other(decoded_traversal_h2, self.losses)
             decoded_traversal_h2 = torch.stack(decoded_traversal_h2, dim=0)
-            decoded_traversal_h2 = decoded_traversal_h2.reshape(n_images2, *other_shape2) # 100 x C x H x W
+            decoded_traversal_h2 = decoded_traversal_h2.reshape(n_images2, *other_shape2)  # 100 x C x H x W
 
             n_images3, *other_shape3 = decoded_traversal_h3.size()
             n_rows3 = n_images3 // n_per_latent  # 400//10 = 40
-            decoded_traversal_h3 = decoded_traversal_h3.reshape(n_rows3, n_per_latent, *other_shape3)  # 100 x 10 x C x H x W
+            decoded_traversal_h3 = decoded_traversal_h3.reshape(n_rows3, n_per_latent,
+                                                                *other_shape3)  # 100 x 10 x C x H x W
             decoded_traversal_h3 = sort_list_by_other(decoded_traversal_h3, self.losses)
             decoded_traversal_h3 = torch.stack(decoded_traversal_h3, dim=0)
-            decoded_traversal_h3 = decoded_traversal_h3.reshape(n_images3, *other_shape3) # 100 x C x H x W
+            decoded_traversal_h3 = decoded_traversal_h3.reshape(n_images3, *other_shape3)  # 100 x C x H x W
 
-        decoded_traversal = torch.cat((decoded_traversal_h1, decoded_traversal_h2, decoded_traversal_h3), 0)  # 300 x C x H x W
-        #decoded_traversal = decoded_traversal[range(n_per_latent * n_latents), ...]
+        decoded_traversal = torch.cat((decoded_traversal_h1, decoded_traversal_h2, decoded_traversal_h3),
+                                      0)  # 300 x C x H x W
 
-        size = (n_latents, n_per_latent) # 2 x 10
         sampling_type = "prior" if data is None else "posterior"
         filename = "{}_{}_{}".format(sampling_type, epoch, PLOT_NAMES["traversals"])
 
-        return self._save_or_return(decoded_traversal.data, size, filename,
+        return self._save_or_return(decoded_traversal.data, dim_list, filename, viz_single,
                                     is_force_return=is_force_return)
 
     def reconstruct_traverse(self, data,
@@ -463,15 +496,15 @@ class GifTraversalsTraining:
         self.n_per_latent = n_per_latent
         self.n_latents = n_latents if n_latents is not None else model.latent_dim
 
-
-    def __call__(self, epoch):
+    def __call__(self, epoch, viz_single):
         """Generate the next gif image. Should be called after each epoch."""
         cached_training = self.visualizer.model.training
         self.visualizer.model.eval()
         img_grid = self.visualizer.traversals(epoch, data=None,  # GIF from prior
                                               is_reorder_latents=self.is_reorder_latents,
                                               n_per_latent=self.n_per_latent,
-                                              n_latents=self.n_latents
+                                              n_latents=self.n_latents,
+                                              viz_single=viz_single
                                               )
         self.images.append(img_grid)
         if cached_training:
