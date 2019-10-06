@@ -3,17 +3,16 @@ from torch import nn
 
 class Decoder(nn.Module):
     def __init__(self, cs,
-                 latent_dim=10):
+                 latent_dim=(2, 2, 2)):
 
         super(Decoder, self).__init__()
 
         # Layer parameters
         self.cs = cs
         kernel_size = 4
-        self.latent_dim = latent_dim
-        ladder0_dim = 2
-        ladder1_dim = 2
-        ladder2_dim = 2
+        self.latent_dim0 = latent_dim[0]
+        self.latent_dim1 = latent_dim[1]
+        self.latent_dim2 = latent_dim[2]
         # Shape required to start transpose convs
         self.data_dims = [32, 32, 1]
         self.fs = [self.data_dims[0], self.data_dims[0] // 2, self.data_dims[0] // 4, self.data_dims[0] // 8,
@@ -21,14 +20,14 @@ class Decoder(nn.Module):
         cnn_kwargs = dict(stride=2, padding=1)
 
         # generative 2
-        self.affd2_1 = nn.Linear(ladder2_dim, cs[3])
+        self.affd2_1 = nn.Linear(self.latent_dim2, cs[3])
         self.bnd2_1 = nn.BatchNorm1d(cs[3], 0.001)
         self.affd2_2 = nn.Linear(cs[3], cs[3])
         self.bnd2_2 = nn.BatchNorm1d(cs[3], 0.001)
         self.affd2_3 = nn.Linear(cs[3], cs[3])
 
         # generative1
-        self.affl1_3 = nn.Linear(ladder1_dim, cs[3])
+        self.affl1_3 = nn.Linear(self.latent_dim1, cs[3])
         self.bnl1_3 = nn.BatchNorm1d(cs[3], 0.001)
         self.affd1_1 = nn.Linear(cs[3] + cs[3], cs[3])
         self.bnd1_1 = nn.BatchNorm1d(cs[3], 0.001)
@@ -37,7 +36,7 @@ class Decoder(nn.Module):
         self.affd1_3 = nn.Linear(cs[3], cs[3])
 
         #generative0
-        self.affl0_3 = nn.Linear(ladder0_dim, cs[3])
+        self.affl0_3 = nn.Linear(self.latent_dim0, cs[3])
         self.bnl0_3 = nn.BatchNorm1d(cs[3], 0.001)
         self.affd0_1 = nn.Linear(cs[3] + cs[3], int(self.fs[2]*self.fs[2]*self.cs[2]))
         self.bnd0_1 = nn.BatchNorm1d(int(self.fs[2]*self.fs[2]*self.cs[2]), 0.001)
