@@ -1,50 +1,33 @@
 import argparse
-import logging
 import sys
 import os
 import torch
-from configparser import ConfigParser
-
 from torch import optim
-
 from disvae.training import Trainer
 from disvae.utils.modelIO import save_model, load_model, load_metadata
-from disvae.models.losses import RECON_DIST
 from disvae.models.vae import VLAE
 from utils.datasets import get_dataloaders, get_img_size, DATASETS
-from utils.helpers import (create_directory, get_device, set_seed, get_n_param,
-                           get_config_section, update_namespace_, FormatterNoDuplicate)
+from utils.helpers import (create_directory, set_seed)
 from utils.visualize import GifTraversalsTraining
 
 RES_DIR = "results"
-#LOG_LEVELS = list(logging._levelToName.values())
-# ADDITIONAL_EXP = ['custom', "debug", "best_celeba", "best_dsprites"]
-# EXPERIMENTS = ADDITIONAL_EXP + ["{}_{}".format(loss, data)
-#                                 for loss in LOSSES
-#                                 for data in DATASETS]
 
 def parse_arguments(args_to_parse):
-    """Parse the command line arguments.
 
-    Parameters
-    ----------
-    args_to_parse: list of str
-        Arguments to parse (splitted on whitespaces).
-    """
     description = "PyTorch implementation and evaluation of disentangled Variational AutoEncoders and metrics."
     parser = argparse.ArgumentParser(description=description)
 
     # General options
     parser.add_argument('name', type=str,
                          help="Name of the model for storing and loading purposes.")
-    # general.add_argument('-L', '--log-level', help="Logging levels.",
-    #                      default=default_config['log_level'], choices=LOG_LEVELS)
     parser.add_argument('--no-progress-bar', action='store_true',
                          default=False,
                          help='Disables progress bar.')
     parser.add_argument('-g', '--gpu', type=int, default=0, help='the number of gpu to use')
     parser.add_argument('-s', '--seed', type=int, default=1234,
                          help='Random seed. Can be `None` for stochastic behavior.')
+    parser.add_argument('--viz_single', action='store_true', default=False, help='vizualize with single dim or pair?')
+
 
     # Learning options
     parser.add_argument('--checkpoint-every', type=int, default=30,
@@ -55,16 +38,14 @@ def parse_arguments(args_to_parse):
     parser.add_argument('--lr', type=float, default=5e-4, help='Learning rate.')
 
     # Model Options
-    parser.add_argument('-z', '--latent_dim', type=int, default=2, help='Dimension of the latent variable.')
-    parser.add_argument('-r', '--rec-dist', default='laplace', choices=RECON_DIST,
-                       help="Form of the likelihood ot use for each pixel.")
+    parser.add_argument('-z', '--latent_dim', nargs='+', type=int, required=True, help='Dimension of the latent variable.')
     parser.add_argument('-a', '--reg-anneal', type=float, default=10000,
                        help="Number of annealing steps where gradually adding the regularisation. What is annealed is specific to each loss.")
 
     # Loss Specific Options
-    parser.add_argument('--reg_coeff0', type=int, default=1.0)
-    parser.add_argument('--reg_coeff1', type=int, default=1.0)
-    parser.add_argument('--reg_coeff2', type=int, default=1.0)
+    parser.add_argument('--reg_coeff0', type=float, default=1.0)
+    parser.add_argument('--reg_coeff1', type=float, default=1.0)
+    parser.add_argument('--reg_coeff2', type=float, default=1.0)
 
     # Learning options
     # evaluation = parser.add_argument_group('Evaluation specific options')
@@ -124,7 +105,7 @@ def main(args):
                           is_progress_bar=not args.no_progress_bar,
                           gif_visualizer=gif_visualizer)
 
-        trainer(train_loader,
+        trainer(args, train_loader,
                 epochs=args.epochs,
                 checkpoint_every=args.checkpoint_every)
 
