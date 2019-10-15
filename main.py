@@ -26,11 +26,12 @@ def parse_arguments(args_to_parse):
     parser.add_argument('-g', '--gpu', type=int, default=0, help='the number of gpu to use')
     parser.add_argument('-s', '--seed', type=int, default=1234,
                          help='Random seed. Can be `None` for stochastic behavior.')
+    parser.add_argument('--exp', type=bool, default=False, help='for experiments?(kill the layers in decoder')
     parser.add_argument('--viz_single', action='store_true', default=False, help='vizualize with single dim or pair?')
 
 
     # Learning options
-    parser.add_argument('--checkpoint-every', type=int, default=30,
+    parser.add_argument('--checkpoint-every', type=int, default=10,
                           help='Save a checkpoint of the trained model every n epoch.')
     parser.add_argument('-d', '--dataset', help="Path to training data.", default='mnist', choices=DATASETS)
     parser.add_argument('-e', '--epochs', type=int, default=100, help='Maximum number of epochs to run for.')
@@ -58,9 +59,16 @@ def parse_arguments(args_to_parse):
     # evaluation.add_argument('--no-test', action='store_true',
     #                         default=default_config['no_test'],
     #                         help="Whether not to compute the test losses.`")
-    # evaluation.add_argument('--eval-batchsize', type=int,
-    #                         default=default_config['eval_batchsize'],
-    #                         help='Batch size for evaluation.')
+    parser.add_argument('--eval-batchsize', type=int,
+                            default=1000,
+                            help='Batch size for evaluation.')
+
+    # Experiment options
+    parser.add_argument('--cl_loss', action='store_true', default=False, help='use mnist classification loss only for pretrained model?')
+    parser.add_argument('--cl_vae', action='store_true', default=False, help='use mnist classification loss and VAE loss?')
+    parser.add_argument('--cl_pretrain', action='store_true', default=False, help='use pretrained parameters for mnist classification loss?')
+    parser.add_argument('--cl_freeze', action='store_true', default=False, help='freeze loadad parameters?')
+
 
     args = parser.parse_args(args_to_parse)
 
@@ -84,18 +92,49 @@ def main(args):
 
         create_directory(exp_dir)
 
-        # PREPARES DATA
+        # PREPARES TRAINING DATA
         train_loader = get_dataloaders(args.dataset, batch_size=args.batch_size)
+        # PREPARES EVALUATOIN DATA
+        test_loader = get_dataloaders(args.dataset + "_test",
+                                      batch_size=args.eval_batchsize,
+                                      shuffle=False)
+
+        ##############
         # PREPARES MODEL
         args.img_size = get_img_size(args.dataset)  # stores for metadata
         cs = [1, 64, 128, 1024]
-        model = VLAE(args.latent_dim, cs)
+        model = VLAE(args, args.latent_dim, cs)
 
-        # TRAINS
+        #Load model##
+        if args.exp and args.cl_pretrain:
+            print('Using pretrained model for mnist classification task')
+            pretrained_dict = torch.load("./results/classify+eval/model-26.pt")
+            model_dict = model.state_dict()
+
+            pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+            model_dict.update(pretrained_dict)
+            model.load_state_dict(model_dict)
+            print(model)
+            #Freeze encoder layers' parameters##
+            if args.cl_freeze:
+                model.encoder.convi0_1.weight.requires_grad = False
+                model.encoder.bni0_1.weight.requires_grad = False
+                model.encoder.convi0_2.weight.requires_grad = False
+                model.encoder.bni0_2.weight.requires_grad = False
+                model.encoder.affi0_3.weight.requires_grad = False
+
+                model.encoder.affi1_1.weight.requires_grad = False
+                model.encoder.bni1_1.weight.requires_grad = False
+                model.encoder.affi1_2.weight.requires_grad = False
+                model.encoder.bni1_2.weight.requires_grad = False
+                model.encoder.affi1_3.weight.requires_grad = False
+
+        #TRAINS
         optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
         model = model.to(device)  # make sure trainer and viz on same device
-        gif_visualizer = GifTraversalsTraining(model, args.dataset, exp_dir)
+        if not args.cl_loss:
+            gif_visualizer = GifTraversalsTraining(model, args.dataset, exp_dir)
 
         reg_coeff = [args.reg_coeff0, args.reg_coeff1, args.reg_coeff2]
 
