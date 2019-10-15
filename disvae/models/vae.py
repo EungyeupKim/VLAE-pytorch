@@ -8,7 +8,7 @@ from disvae.models.encoders import Encoder
 from disvae.models.decoders import Decoder
 
 class VLAE(nn.Module):
-    def __init__(self, latent_dim, cs):
+    def __init__(self, args, latent_dim, cs):
         """
         Class which defines model and forward pass.
 
@@ -19,10 +19,11 @@ class VLAE(nn.Module):
         """
         super(VLAE, self).__init__()
 
+        self.args = args
         self.latent_dim = latent_dim
         self.img_size = (1, 32, 32)
-        self.encoder = Encoder(self.img_size, cs, self.latent_dim)
-        self.decoder = Decoder(cs, self.latent_dim)
+        self.encoder = Encoder(self.args, self.img_size, cs, self.latent_dim)
+        self.decoder = Decoder(self.args, cs, self.latent_dim)
 
     def forward(self, x):
         """
@@ -33,7 +34,22 @@ class VLAE(nn.Module):
         x : torch.Tensor
             Batch of data. Shape (batch_size, n_chan, height, width)
         """
-        h0_ladd_mean, h0_ladd_stddev, h0_sample, h1_ladd_mean, h1_ladd_stddev, h1_sample, h2_ladd_mean, h2_ladd_stddev, h2_sample = self.encoder(x)
-        gen_img = self.decoder(h0_sample, h1_sample, h2_sample)
 
-        return gen_img, h0_ladd_mean, h0_ladd_stddev, h1_ladd_mean, h1_ladd_stddev, h2_ladd_mean, h2_ladd_stddev
+        if self.args.exp:
+            if self.args.cl_vae:
+                h2, h0_ladd_mean, h0_ladd_stddev, h0_sample, h1_ladd_mean, h1_ladd_stddev, h1_sample, h2_ladd_mean, h2_ladd_stddev, h2_sample = self.encoder(x)
+                gen_img = self.decoder(h0_sample, h1_sample, h2_sample)
+                return F.log_softmax(h2, dim=1), gen_img, h0_ladd_mean, h0_ladd_stddev, h1_ladd_mean, h1_ladd_stddev, h2_ladd_mean, h2_ladd_stddev
+
+            elif self.args.cl_loss:
+                h2 = self.encoder(x)
+                return h2
+
+            else:
+                h0_ladd_mean, h0_ladd_stddev, h0_sample, h1_ladd_mean, h1_ladd_stddev, h1_sample, h2_ladd_mean, h2_ladd_stddev, h2_sample = self.encoder(x)
+                gen_img = self.decoder(h0_sample, h1_sample, h2_sample)
+                return gen_img, h0_ladd_mean, h0_ladd_stddev, h1_ladd_mean, h1_ladd_stddev, h2_ladd_mean, h2_ladd_stddev
+        else:
+            h0_ladd_mean, h0_ladd_stddev, h0_sample, h1_ladd_mean, h1_ladd_stddev, h1_sample, h2_ladd_mean, h2_ladd_stddev, h2_sample = self.encoder(x)
+            gen_img = self.decoder(h0_sample, h1_sample, h2_sample)
+            return gen_img, h0_ladd_mean, h0_ladd_stddev, h1_ladd_mean, h1_ladd_stddev, h2_ladd_mean, h2_ladd_stddev
