@@ -2,7 +2,9 @@ from timeit import default_timer
 from collections import defaultdict
 from tqdm import trange
 import torch
+import torch.nn as nn
 import numpy as np
+import torch.nn.functional as F
 
 from disvae.utils.modelIO import save_model
 
@@ -73,18 +75,55 @@ class Trainer():
         start = default_timer()
         self.args = args
         self.model.train()
-        for epoch in range(epochs):
-            mean_epoch_loss = self._train_epoch(data_loader, epoch)
-            print('Loss per epoch : {} ---- {}/{}'.format(mean_epoch_loss, epoch, epochs))
 
-            if self.gif_visualizer is not None:
-                self.gif_visualizer(epoch, viz_single=self.args.viz_single)
+        if self.args.exp:
+            for epoch in range(epochs):
+                if self.args.cl_vae:
+                    mean_epoch_loss, mean_epoch_vlae_loss, mean_epoch_cl_loss = self._train_epoch(data_loader, epoch)
+                    print('Train Set: Loss_epoch : {:.4f}, VLAE_epoch : {:.4f}, CL_epoch : {:.4f} ---- {}/{}'.format(mean_epoch_loss, mean_epoch_vlae_loss, mean_epoch_cl_loss, epoch, epochs))
+                else:
+                    mean_epoch_loss = self._train_epoch(data_loader, epoch)
+                    print('Train Set: Loss_epoch : {:.4f} ---- {}/{}'.format(mean_epoch_loss, epoch, epochs))
 
-            if epoch % checkpoint_every == 0:
-                save_model(self.model, self.save_dir, filename="model-{}.pt".format(epoch))
+                if not self.args.cl_loss:
+                    if self.gif_visualizer is not None:
+                        self.gif_visualizer(epoch, viz_single=self.args.viz_single)
 
-        if self.gif_visualizer is not None:
-            self.gif_visualizer.save_reset()
+                ###evaluation###
+                # self.model.eval()
+                # eval_acc = 0
+                # eval_loss = 0
+                # with torch.no_grad():
+                #     for _, (data, label) in enumerate(test_data_loader):
+                #         data = data.to(self.device)
+                #         label = label.to(self.device)
+                #         output = self.model(data)
+                #         expect_class = output.argmax(dim=1, keepdim=True)
+                #         eval_loss += F.nll_loss(output, label, reduction='sum').item()
+                #         eval_acc += expect_class.eq(label.view_as(expect_class)).sum().item()
+                #     eval_loss /= len(test_data_loader.dataset)
+                #     eval_acc /= len(test_data_loader.dataset)
+                #     print('Test Set: Loss_epoch: {}, Accuracy_epoch: {} ---- {}/{}'.format(eval_loss, eval_acc, epoch, epochs))
+                ####
+
+                if epoch % checkpoint_every == 0:
+                    save_model(self.model, self.save_dir, filename="model-{}.pt".format(epoch))
+
+            # if self.gif_visualizer is not None:
+            #     self.gif_visualizer.save_reset()
+        else:
+            for epoch in range(epochs):
+                mean_epoch_loss = self._train_epoch(data_loader, epoch)
+                print('Loss per epoch : {} ---- {}/{}'.format(mean_epoch_loss, epoch, epochs))
+
+                if self.gif_visualizer is not None:
+                    self.gif_visualizer(epoch, viz_single=self.args.viz_single)
+
+                if epoch % checkpoint_every == 0:
+                    save_model(self.model, self.save_dir, filename="model-{}.pt".format(epoch))
+
+            # if self.gif_visualizer is not None:
+            #     self.gif_visualizer.save_reset()
 
         self.model.eval()
 
@@ -110,21 +149,69 @@ class Trainer():
         mean_epoch_loss: float
             Mean loss per image
         """
-        epoch_loss = 0.
-        kwargs = dict(desc="Epoch {}".format(epoch + 1), leave=False,
-                      disable=not self.is_progress_bar)
-        with trange(len(data_loader), **kwargs) as t:
-            for _, (data, _) in enumerate(data_loader):
-                iter_loss = self._train_iteration(data)
-                epoch_loss += iter_loss
+        if self.args.exp:
+            epoch_loss = 0.
+            epoch_vlae_loss = 0.
+            epoch_cl_loss = 0.
+            kwargs = dict(desc="Epoch {}".format(epoch + 1), leave=False,
+                          disable=not self.is_progress_bar)
+            if self.args.cl_loss:
+                with trange(len(data_loader), **kwargs) as t:
+                    for _, (data, label) in enumerate(data_loader):
+                        iter_loss = self._train_iteration(data, label)
+                        epoch_loss += iter_loss
 
-                t.set_postfix(loss=iter_loss)
-                t.update()
+                        t.set_postfix(loss=iter_loss)
+                        t.update()
 
-        mean_epoch_loss = epoch_loss / len(data_loader)
-        return mean_epoch_loss
+                mean_epoch_loss = epoch_loss / len(data_loader.dataset)
 
-    def _train_iteration(self, data):
+                return mean_epoch_loss
+            if self.args.cl_vae:
+                with trange(len(data_loader), **kwargs) as t:
+                    for _, (data, label) in enumerate(data_loader):
+                        iter_loss, vlae_loss, cl_loss = self._train_iteration(data, label)
+                        epoch_loss += iter_loss
+                        epoch_vlae_loss += vlae_loss
+                        epoch_cl_loss += cl_loss
+
+                        t.set_postfix(loss=iter_loss)
+                        t.update()
+
+                mean_epoch_loss = epoch_loss / len(data_loader)
+                mean_epoch_vlae_loss = epoch_vlae_loss / len(data_loader)
+                mean_epoch_cl_loss = epoch_cl_loss / len(data_loader)
+
+                return mean_epoch_loss, mean_epoch_vlae_loss, mean_epoch_cl_loss
+            else:
+                with trange(len(data_loader), **kwargs) as t:
+                    for _, (data, label) in enumerate(data_loader):
+                        iter_loss = self._train_iteration(data, label)
+                        epoch_loss += iter_loss
+
+                        t.set_postfix(loss=iter_loss)
+                        t.update()
+
+                mean_epoch_loss = epoch_loss / len(data_loader)
+                return mean_epoch_loss
+        else:
+            epoch_loss = 0.
+            kwargs = dict(desc="Epoch {}".format(epoch + 1), leave=False,
+                          disable=not self.is_progress_bar)
+            with trange(len(data_loader), **kwargs) as t:
+                for _, (data, _) in enumerate(data_loader):
+                    iter_loss = self._train_iteration(data)
+                    epoch_loss += iter_loss
+
+                    t.set_postfix(loss=iter_loss)
+                    t.update()
+
+            mean_epoch_loss = epoch_loss / len(data_loader)
+            return mean_epoch_loss
+
+
+
+    def _train_iteration(self, data, label):
         """
         Trains the model for one iteration on a batch of data.
 
@@ -136,22 +223,97 @@ class Trainer():
         storer: dict
             Dictionary in which to store important variables for vizualisation.
         """
-        data = data.to(self.device)
+        if self.args.exp:
+            if self.args.cl_loss:
+                data = data.to(self.device)
+                label = label.to(self.device)
+                output = self.model(data)
 
-        gen_img, h0_ladd_mean, h0_ladd_stddev, h1_ladd_mean, h1_ladd_stddev, h2_ladd_mean, h2_ladd_stddev = self.model(data)
-        recon_loss = torch.mean(torch.abs(data - gen_img))
-        kl_normal_loss_0 = ((-1 * torch.log(h0_ladd_stddev) + 0.5 * (h0_ladd_stddev ** 2) + 0.5 * (h0_ladd_mean ** 2) - 0.5).mean(dim=0)).sum()
-        kl_normal_loss_1 = ((-1 * torch.log(h1_ladd_stddev) + 0.5 * (h1_ladd_stddev ** 2) + 0.5 * (h1_ladd_mean ** 2) - 0.5).mean(dim=0)).sum()
-        kl_normal_loss_2 = ((-1 * torch.log(h2_ladd_stddev) + 0.5 * (h2_ladd_stddev ** 2) + 0.5 * (h2_ladd_mean ** 2) - 0.5).mean(dim=0)).sum()
+                cl_loss = F.nll_loss(output, label) * 100
 
-        kl_loss = self.reg_coeff[0] * kl_normal_loss_0 + \
-                  self.reg_coeff[1] * kl_normal_loss_1 + \
-                  self.reg_coeff[2] * kl_normal_loss_2
+                loss = cl_loss
 
-        loss = kl_loss + recon_loss * np.prod(self.model.img_size) * self.loss_ratio
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
 
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
+                return loss.item()
+            elif self.args.cl_vae:
 
-        return loss.item()
+                data = data.to(self.device)
+                label = label.to(self.device)
+
+                output, gen_img, h0_ladd_mean, h0_ladd_stddev, h1_ladd_mean, h1_ladd_stddev, h2_ladd_mean, h2_ladd_stddev = self.model(data)
+
+                cl_loss = F.nll_loss(output, label) * 100
+                recon_loss = torch.mean(torch.abs(data - gen_img))
+                kl_normal_loss_0 = ((-1 * torch.log(h0_ladd_stddev) + 0.5 * (h0_ladd_stddev ** 2) + 0.5 * (h0_ladd_mean ** 2) - 0.5).mean(dim=0)).sum()
+                kl_normal_loss_1 = ((-1 * torch.log(h1_ladd_stddev) + 0.5 * (h1_ladd_stddev ** 2) + 0.5 * (h1_ladd_mean ** 2) - 0.5).mean(dim=0)).sum()
+                kl_normal_loss_2 = ((-1 * torch.log(h2_ladd_stddev) + 0.5 * (h2_ladd_stddev ** 2) + 0.5 * (h2_ladd_mean ** 2) - 0.5).mean(dim=0)).sum()
+
+                kl_loss = self.reg_coeff[0] * kl_normal_loss_0 + \
+                          self.reg_coeff[1] * kl_normal_loss_1 + \
+                          self.reg_coeff[2] * kl_normal_loss_2
+
+                vlae_loss = kl_loss + recon_loss * np.prod(self.model.img_size) * self.loss_ratio
+                loss = vlae_loss + cl_loss
+
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+
+                return loss.item(), vlae_loss, cl_loss
+            else:
+                data = data.to(self.device)
+
+                gen_img, h0_ladd_mean, h0_ladd_stddev, h1_ladd_mean, h1_ladd_stddev, h2_ladd_mean, h2_ladd_stddev = self.model(data)
+
+                recon_loss = torch.mean(torch.abs(data - gen_img))
+                kl_normal_loss_0 = (
+                    (-1 * torch.log(h0_ladd_stddev) + 0.5 * (h0_ladd_stddev ** 2) + 0.5 * (h0_ladd_mean ** 2) - 0.5).mean(
+                        dim=0)).sum()
+                kl_normal_loss_1 = (
+                    (-1 * torch.log(h1_ladd_stddev) + 0.5 * (h1_ladd_stddev ** 2) + 0.5 * (h1_ladd_mean ** 2) - 0.5).mean(
+                        dim=0)).sum()
+                kl_normal_loss_2 = (
+                    (-1 * torch.log(h2_ladd_stddev) + 0.5 * (h2_ladd_stddev ** 2) + 0.5 * (h2_ladd_mean ** 2) - 0.5).mean(
+                        dim=0)).sum()
+
+                kl_loss = self.reg_coeff[0] * kl_normal_loss_0 + \
+                          self.reg_coeff[1] * kl_normal_loss_1 + \
+                          self.reg_coeff[2] * kl_normal_loss_2
+
+                loss = kl_loss + recon_loss * np.prod(self.model.img_size) * self.loss_ratio
+
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+
+                return loss.item()
+        else:
+            data = data.to(self.device)
+
+            gen_img, h0_ladd_mean, h0_ladd_stddev, h1_ladd_mean, h1_ladd_stddev, h2_ladd_mean, h2_ladd_stddev = self.model(
+                data)
+            recon_loss = torch.mean(torch.abs(data - gen_img))
+            kl_normal_loss_0 = (
+                (-1 * torch.log(h0_ladd_stddev) + 0.5 * (h0_ladd_stddev ** 2) + 0.5 * (h0_ladd_mean ** 2) - 0.5).mean(
+                    dim=0)).sum()
+            kl_normal_loss_1 = (
+                (-1 * torch.log(h1_ladd_stddev) + 0.5 * (h1_ladd_stddev ** 2) + 0.5 * (h1_ladd_mean ** 2) - 0.5).mean(
+                    dim=0)).sum()
+            kl_normal_loss_2 = (
+                (-1 * torch.log(h2_ladd_stddev) + 0.5 * (h2_ladd_stddev ** 2) + 0.5 * (h2_ladd_mean ** 2) - 0.5).mean(
+                    dim=0)).sum()
+
+            kl_loss = self.reg_coeff[0] * kl_normal_loss_0 + \
+                      self.reg_coeff[1] * kl_normal_loss_1 + \
+                      self.reg_coeff[2] * kl_normal_loss_2
+
+            loss = kl_loss + recon_loss * np.prod(self.model.img_size) * self.loss_ratio
+
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+
+            return loss.item()
