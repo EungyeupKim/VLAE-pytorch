@@ -19,90 +19,43 @@ class Encoder(nn.Module):
         self.img_size = img_size
         n_chan = self.img_size[0]
 
+        # ladder0
+        self.convl0_1 = nn.Conv2d(n_chan, cs[1], kernel_size, **cnn_kwargs)
+        self.bnl0_1 = nn.BatchNorm2d(cs[1], 0.001)
+        self.convl0_2 = nn.Conv2d(cs[1], cs[2], kernel_size, **cnn_kwargs)
+        self.bnl0_2 = nn.BatchNorm2d(cs[2], 0.001)
+        self.affl0_mean = nn.Linear(np.product((cs[2], 2 * kernel_size, 2 * kernel_size)), self.latent_dim0)
+        self.affl0_stddev = nn.Linear(np.product((cs[2], 2 * kernel_size, 2 * kernel_size)), self.latent_dim0)
 
-        if self.args.exp:
-            if not self.args.cl_loss:
-                # ladder0
-                self.convl0_1 = nn.Conv2d(n_chan, cs[1], kernel_size, **cnn_kwargs)
-                self.bnl0_1 = nn.BatchNorm2d(cs[1], 0.001)
-                self.convl0_2 = nn.Conv2d(cs[1], cs[2], kernel_size, **cnn_kwargs)
-                self.bnl0_2 = nn.BatchNorm2d(cs[2], 0.001)
-                self.affl0_mean = nn.Linear(np.product((cs[2], 2 * kernel_size, 2 * kernel_size)), self.latent_dim0)
-                self.affl0_stddev = nn.Linear(np.product((cs[2], 2 * kernel_size, 2 * kernel_size)), self.latent_dim0)
+        # inference0
+        self.convi0_1 = nn.Conv2d(n_chan, cs[1], kernel_size, **cnn_kwargs)
+        self.bni0_1 = nn.BatchNorm2d(cs[1], 0.001)
+        self.convi0_2 = nn.Conv2d(cs[1], cs[2], kernel_size, **cnn_kwargs)
+        self.bni0_2 = nn.BatchNorm2d(cs[2], 0.001)
+        self.affi0_3 = nn.Linear(np.product((cs[2], 2 * kernel_size, 2 * kernel_size)), cs[3])
 
-            #inference0
-            self.convi0_1 = nn.Conv2d(n_chan, cs[1], kernel_size, **cnn_kwargs)
-            self.bni0_1 = nn.BatchNorm2d(cs[1], 0.001)
-            self.convi0_2 = nn.Conv2d(cs[1], cs[2], kernel_size, **cnn_kwargs)
-            self.bni0_2 = nn.BatchNorm2d(cs[2], 0.001)
-            self.affi0_3 = nn.Linear(np.product((cs[2], 2 * kernel_size, 2 * kernel_size)), cs[3])
+        # ladder1
+        self.affl1_1 = nn.Linear(cs[3], cs[3])
+        self.bnl1_1 = nn.BatchNorm1d(cs[3], 0.001)
+        self.affl1_2 = nn.Linear(cs[3], cs[3])
+        self.bnl1_2 = nn.BatchNorm1d(cs[3], 0.001)
+        self.affl1_mean = nn.Linear(cs[3], self.latent_dim1)
+        self.affl1_stddev = nn.Linear(cs[3], self.latent_dim1)
 
-            if not self.args.cl_loss:
-                # ladder1
-                self.affl1_1 = nn.Linear(cs[3], cs[3])
-                self.bnl1_1 = nn.BatchNorm1d(cs[3], 0.001)
-                self.affl1_2 = nn.Linear(cs[3], cs[3])
-                self.bnl1_2 = nn.BatchNorm1d(cs[3], 0.001)
-                self.affl1_mean = nn.Linear(cs[3], self.latent_dim1)
-                self.affl1_stddev = nn.Linear(cs[3], self.latent_dim1)
+        # inference1
+        self.affi1_1 = nn.Linear(cs[3], cs[3])
+        self.bni1_1 = nn.BatchNorm1d(cs[3], 0.001)
+        self.affi1_2 = nn.Linear(cs[3], cs[3])
+        self.bni1_2 = nn.BatchNorm1d(cs[3], 0.001)
+        self.affi1_3 = nn.Linear(cs[3], cs[3])
 
-            # inference1
-            self.affi1_1 = nn.Linear(cs[3], cs[3])
-            self.bni1_1 = nn.BatchNorm1d(cs[3], 0.001)
-            self.affi1_2 = nn.Linear(cs[3], cs[3])
-            self.bni1_2 = nn.BatchNorm1d(cs[3], 0.001)
-            self.affi1_3 = nn.Linear(cs[3], cs[3])
-
-            if self.args.cl_vae or self.args.cl_loss:
-                self.affi1_class = nn.Linear(cs[3], 10)
-
-            if not self.args.cl_loss:
-                #ladder2
-                self.affl2_1 = nn.Linear(cs[3], cs[3])
-                self.bnl2_1 = nn.BatchNorm1d(cs[3], 0.001)
-                self.affl2_2 = nn.Linear(cs[3], cs[3])
-                self.bnl2_2 = nn.BatchNorm1d(cs[3], 0.001)
-                self.affl2_mean = nn.Linear(cs[3], self.latent_dim2)
-                self.affl2_stddev = nn.Linear(cs[3], self.latent_dim2)
-
-        else:
-            # ladder0
-            self.convl0_1 = nn.Conv2d(n_chan, cs[1], kernel_size, **cnn_kwargs)
-            self.bnl0_1 = nn.BatchNorm2d(cs[1], 0.001)
-            self.convl0_2 = nn.Conv2d(cs[1], cs[2], kernel_size, **cnn_kwargs)
-            self.bnl0_2 = nn.BatchNorm2d(cs[2], 0.001)
-            self.affl0_mean = nn.Linear(np.product((cs[2], 2 * kernel_size, 2 * kernel_size)), self.latent_dim0)
-            self.affl0_stddev = nn.Linear(np.product((cs[2], 2 * kernel_size, 2 * kernel_size)), self.latent_dim0)
-
-            # inference0
-            self.convi0_1 = nn.Conv2d(n_chan, cs[1], kernel_size, **cnn_kwargs)
-            self.bni0_1 = nn.BatchNorm2d(cs[1], 0.001)
-            self.convi0_2 = nn.Conv2d(cs[1], cs[2], kernel_size, **cnn_kwargs)
-            self.bni0_2 = nn.BatchNorm2d(cs[2], 0.001)
-            self.affi0_3 = nn.Linear(np.product((cs[2], 2 * kernel_size, 2 * kernel_size)), cs[3])
-
-            # ladder1
-            self.affl1_1 = nn.Linear(cs[3], cs[3])
-            self.bnl1_1 = nn.BatchNorm1d(cs[3], 0.001)
-            self.affl1_2 = nn.Linear(cs[3], cs[3])
-            self.bnl1_2 = nn.BatchNorm1d(cs[3], 0.001)
-            self.affl1_mean = nn.Linear(cs[3], self.latent_dim1)
-            self.affl1_stddev = nn.Linear(cs[3], self.latent_dim1)
-
-            # inference1
-            self.affi1_1 = nn.Linear(cs[3], cs[3])
-            self.bni1_1 = nn.BatchNorm1d(cs[3], 0.001)
-            self.affi1_2 = nn.Linear(cs[3], cs[3])
-            self.bni1_2 = nn.BatchNorm1d(cs[3], 0.001)
-            self.affi1_3 = nn.Linear(cs[3], cs[3])
-
-            # ladder2
-            self.affl2_1 = nn.Linear(cs[3], cs[3])
-            self.bnl2_1 = nn.BatchNorm1d(cs[3], 0.001)
-            self.affl2_2 = nn.Linear(cs[3], cs[3])
-            self.bnl2_2 = nn.BatchNorm1d(cs[3], 0.001)
-            self.affl2_mean = nn.Linear(cs[3], self.latent_dim2)
-            self.affl2_stddev = nn.Linear(cs[3], self.latent_dim2)
+        # ladder2
+        self.affl2_1 = nn.Linear(cs[3], cs[3])
+        self.bnl2_1 = nn.BatchNorm1d(cs[3], 0.001)
+        self.affl2_2 = nn.Linear(cs[3], cs[3])
+        self.bnl2_2 = nn.BatchNorm1d(cs[3], 0.001)
+        self.affl2_mean = nn.Linear(cs[3], self.latent_dim2)
+        self.affl2_stddev = nn.Linear(cs[3], self.latent_dim2)
 
     def reparameterize(self, mean, stddev):
 
@@ -113,107 +66,48 @@ class Encoder(nn.Module):
             return mean
 
     def forward(self, x):
-        if self.args.exp:
-            if not self.args.cl_loss:
-                #ladder0
-                h0_ladd = self.convl0_1(x)
-                h0_ladd = torch.relu(self.bnl0_1(h0_ladd))
-                h0_ladd = self.convl0_2(h0_ladd)
-                h0_ladd = torch.relu(self.bnl0_2(h0_ladd))
-                h0_ladd = h0_ladd.reshape(h0_ladd.shape[0], -1)
-                h0_ladd_mean = self.affl0_mean(h0_ladd)
-                h0_ladd_stddev = torch.sigmoid(self.affl0_stddev(h0_ladd)) + 0.001
-                h0_sample = self.reparameterize(h0_ladd_mean, h0_ladd_stddev)
 
-            # inference0
-            h1_inf = self.convi0_1(x)
-            h1_inf = torch.relu(self.bni0_1(h1_inf))
-            h1_inf = self.convi0_2(h1_inf)
-            h1_inf = torch.relu(self.bni0_2(h1_inf))
-            h1_inf = h1_inf.reshape(h1_inf.shape[0], -1)
-            h1 = self.affi0_3(h1_inf)
+        # ladder0
+        h0_ladd = self.convl0_1(x)
+        h0_ladd = torch.relu(self.bnl0_1(h0_ladd))
+        h0_ladd = self.convl0_2(h0_ladd)
+        h0_ladd = torch.relu(self.bnl0_2(h0_ladd))
+        h0_ladd = h0_ladd.reshape(h0_ladd.shape[0], -1)
+        h0_ladd_mean = self.affl0_mean(h0_ladd)
+        h0_ladd_stddev = torch.sigmoid(self.affl0_stddev(h0_ladd)) + 0.001
+        h0_sample = self.reparameterize(h0_ladd_mean, h0_ladd_stddev)
 
-            if not self.args.cl_loss:
-                # ladder1
-                h1_ladd = self.affl1_1(h1)
-                h1_ladd = torch.relu(self.bnl1_1(h1_ladd))
-                h1_ladd = self.affl1_2(h1_ladd)
-                h1_ladd = torch.relu(self.bnl1_2(h1_ladd))
-                h1_ladd_mean = self.affl1_mean(h1_ladd)
-                h1_ladd_stddev = torch.sigmoid(self.affl1_stddev(h1_ladd)) + 0.001
-                h1_sample = self.reparameterize(h1_ladd_mean, h1_ladd_stddev)
+        # inference0
+        h1_inf = self.convi0_1(x)
+        h1_inf = torch.relu(self.bni0_1(h1_inf))
+        h1_inf = self.convi0_2(h1_inf)
+        h1_inf = torch.relu(self.bni0_2(h1_inf))
+        h1_inf = h1_inf.reshape(h1_inf.shape[0], -1)
+        h1 = self.affi0_3(h1_inf)
 
-            # inference1
-            h2_inf = self.affi1_1(h1)
-            h2_inf = torch.relu(self.bni1_1(h2_inf))
-            h2_inf = self.affi1_2(h2_inf)
-            h2_inf = torch.relu(self.bni1_2(h2_inf))
-            h2 = self.affi1_1(h2_inf)
+        # ladder1
+        h1_ladd = self.affl1_1(h1)
+        h1_ladd = torch.relu(self.bnl1_1(h1_ladd))
+        h1_ladd = self.affl1_2(h1_ladd)
+        h1_ladd = torch.relu(self.bnl1_2(h1_ladd))
+        h1_ladd_mean = self.affl1_mean(h1_ladd)
+        h1_ladd_stddev = torch.sigmoid(self.affl1_stddev(h1_ladd)) + 0.001
+        h1_sample = self.reparameterize(h1_ladd_mean, h1_ladd_stddev)
 
-            if self.args.cl_vae or self.args.cl_loss:
-                h3 = self.affi1_class(h2)
+        # inference1
+        h2_inf = self.affi1_1(h1)
+        h2_inf = torch.relu(self.bni1_1(h2_inf))
+        h2_inf = self.affi1_2(h2_inf)
+        h2_inf = torch.relu(self.bni1_2(h2_inf))
+        h2 = self.affi1_1(h2_inf)
 
-            if not self.args.cl_loss:
-                # ladder2
-                h2_ladd = self.affl2_1(h2)
-                h2_ladd = torch.relu(self.bnl2_1(h2_ladd))
-                h2_ladd = self.affl2_2(h2_ladd)
-                h2_ladd = torch.relu(self.bnl2_2(h2_ladd))
-                h2_ladd_mean = self.affl2_mean(h2_ladd)
-                h2_ladd_stddev = torch.sigmoid(self.affl2_stddev(h2_ladd)) + 0.001
-                h2_sample = self.reparameterize(h2_ladd_mean, h2_ladd_stddev)
+        # ladder2
+        h2_ladd = self.affl2_1(h2)
+        h2_ladd = torch.relu(self.bnl2_1(h2_ladd))
+        h2_ladd = self.affl2_2(h2_ladd)
+        h2_ladd = torch.relu(self.bnl2_2(h2_ladd))
+        h2_ladd_mean = self.affl2_mean(h2_ladd)
+        h2_ladd_stddev = torch.sigmoid(self.affl2_stddev(h2_ladd)) + 0.001
+        h2_sample = self.reparameterize(h2_ladd_mean, h2_ladd_stddev)
 
-            if self.args.cl_vae:
-                return h3, h0_ladd_mean, h0_ladd_stddev, h0_sample, h1_ladd_mean, h1_ladd_stddev, h1_sample, h2_ladd_mean, h2_ladd_stddev, h2_sample
-
-            elif self.args.cl_loss:
-                return h3
-
-            else:
-                return h0_ladd_mean, h0_ladd_stddev, h0_sample, h1_ladd_mean, h1_ladd_stddev, h1_sample, h2_ladd_mean, h2_ladd_stddev, h2_sample
-
-        else:
-            # ladder0
-            h0_ladd = self.convl0_1(x)
-            h0_ladd = torch.relu(self.bnl0_1(h0_ladd))
-            h0_ladd = self.convl0_2(h0_ladd)
-            h0_ladd = torch.relu(self.bnl0_2(h0_ladd))
-            h0_ladd = h0_ladd.reshape(h0_ladd.shape[0], -1)
-            h0_ladd_mean = self.affl0_mean(h0_ladd)
-            h0_ladd_stddev = torch.sigmoid(self.affl0_stddev(h0_ladd)) + 0.001
-            h0_sample = self.reparameterize(h0_ladd_mean, h0_ladd_stddev)
-
-            # inference0
-            h1_inf = self.convi0_1(x)
-            h1_inf = torch.relu(self.bni0_1(h1_inf))
-            h1_inf = self.convi0_2(h1_inf)
-            h1_inf = torch.relu(self.bni0_2(h1_inf))
-            h1_inf = h1_inf.reshape(h1_inf.shape[0], -1)
-            h1 = self.affi0_3(h1_inf)
-
-            # ladder1
-            h1_ladd = self.affl1_1(h1)
-            h1_ladd = torch.relu(self.bnl1_1(h1_ladd))
-            h1_ladd = self.affl1_2(h1_ladd)
-            h1_ladd = torch.relu(self.bnl1_2(h1_ladd))
-            h1_ladd_mean = self.affl1_mean(h1_ladd)
-            h1_ladd_stddev = torch.sigmoid(self.affl1_stddev(h1_ladd)) + 0.001
-            h1_sample = self.reparameterize(h1_ladd_mean, h1_ladd_stddev)
-
-            # inference1
-            h2_inf = self.affi1_1(h1)
-            h2_inf = torch.relu(self.bni1_1(h2_inf))
-            h2_inf = self.affi1_2(h2_inf)
-            h2_inf = torch.relu(self.bni1_2(h2_inf))
-            h2 = self.affi1_1(h2_inf)
-
-            # ladder2
-            h2_ladd = self.affl2_1(h2)
-            h2_ladd = torch.relu(self.bnl2_1(h2_ladd))
-            h2_ladd = self.affl2_2(h2_ladd)
-            h2_ladd = torch.relu(self.bnl2_2(h2_ladd))
-            h2_ladd_mean = self.affl2_mean(h2_ladd)
-            h2_ladd_stddev = torch.sigmoid(self.affl2_stddev(h2_ladd)) + 0.001
-            h2_sample = self.reparameterize(h2_ladd_mean, h2_ladd_stddev)
-
-            return h0_ladd_mean, h0_ladd_stddev, h0_sample, h1_ladd_mean, h1_ladd_stddev, h1_sample, h2_ladd_mean, h2_ladd_stddev, h2_sample
+        return h0_ladd_mean, h0_ladd_stddev, h0_sample, h1_ladd_mean, h1_ladd_stddev, h1_sample, h2_ladd_mean, h2_ladd_stddev, h2_sample

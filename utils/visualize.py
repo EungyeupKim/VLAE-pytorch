@@ -296,12 +296,13 @@ class Visualizer():
                     latent_samples[10 * i + j][0] = prior_range[i]
                     latent_samples[10 * i + j][1] = prior_range[j]
 
-            zero_samples = torch.zeros(latent_samples.shape)  # 100 x 2
+            # zero_samples = torch.zeros(latent_samples.shape)  # 100 x 2
+            static_samples = torch.randn(1).repeat(latent_samples.shape)
 
-            decoded_traversal_h1 = self._decode_latents(latent_samples, zero_samples,
-                                                        zero_samples)  # 100 x C x H x W -> 100 samples of 1st hidden layer
-            decoded_traversal_h2 = self._decode_latents(zero_samples, latent_samples, zero_samples)
-            decoded_traversal_h3 = self._decode_latents(zero_samples, zero_samples, latent_samples)
+            decoded_traversal_h1 = self._decode_latents(latent_samples, static_samples,
+                                                        static_samples)  # 100 x C x H x W -> 100 samples of 1st hidden layer
+            decoded_traversal_h2 = self._decode_latents(static_samples, latent_samples, static_samples)
+            decoded_traversal_h3 = self._decode_latents(static_samples, static_samples, latent_samples)
 
             dim_list = None
 
